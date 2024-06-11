@@ -1,6 +1,6 @@
 package com.sourcegraph.cody.error
 
-import com.intellij.execution.filters.TextConsoleBuilderFactory
+import com.intellij.execution.impl.ConsoleViewImpl
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.components.Service
@@ -12,7 +12,7 @@ import com.sourcegraph.cody.agent.protocol.DebugMessage
 
 @Service(Service.Level.PROJECT)
 class CodyConsole(project: Project) {
-  private val consoleView = TextConsoleBuilderFactory.getInstance().createBuilder(project).console
+  private val consoleView = ConsoleViewImpl(project, /* viewer = */ true)
   private val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("Problems View")
   var content: Content? = null
 
@@ -23,6 +23,10 @@ class CodyConsole(project: Project) {
   fun addMessage(message: DebugMessage) {
     if (isEnabled) {
       runInEdt {
+        if (toolWindow?.isDisposed != false) {
+//          return@runInEdt
+        }
+
         if (message.message.contains("ERROR") || message.message.contains("PANIC")) {
           toolWindow?.show()
           content?.let { toolWindow?.contentManager?.setSelectedContent(it) }
@@ -39,9 +43,18 @@ class CodyConsole(project: Project) {
   init {
     if (isEnabled) {
       runInEdt {
+        if (toolWindow?.isDisposed != false) {
+//          return@runInEdt
+        }
+
         val factory = toolWindow?.contentManager?.factory
-        content = factory?.createContent(consoleView.component, "Cody Console", true)
-        content?.let { toolWindow?.contentManager?.addContent(it) }
+        content =
+            factory
+                ?.createContent(
+                    /* component = */ consoleView.component,
+                    /* displayName = */ "Cody Console",
+                    /* isLockable = */ true)
+                ?.also { toolWindow?.contentManager?.addContent(it) }
       }
     }
   }
